@@ -20,16 +20,10 @@ if __name__ == "__main__":
 
     # Render the scene
     bproc.renderer.set_output_format("PNG")
-    bproc.renderer.set_resolution(640, 480)
-    bproc.renderer.render()
+    data = bproc.renderer.render()
     # Save the rendered image
-    bproc.writer.write_blend("output/output.blend")
-    bproc.writer.write_images("output/output_images")
-    bproc.writer.write_depth("output/output_depth")
-    bproc.writer.write_camera_poses("output/output_camera_poses.json")
-    bproc.writer.write_object_instances("output/output_object_instances.json")
-    # Save the scene
-    bproc.writer.write_scene("output/output_scene.blend")
+    #bproc.writer.write_blend("output/output.blend")
     # Print the output path
-    print("Rendered scene saved to 'output/output_scene.blend' and images saved to 'output_images/'")
+    # write hdf5 file
+    bproc.writer.write_hdf5("output/output.hdf5", data)
     
