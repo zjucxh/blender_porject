@@ -7,6 +7,14 @@ if __name__ == "__main__":
 
     # Create monkey object
     monkey = bproc.object.create_primitive("MONKEY")
+    objs = bproc.loader.load_AMASS(
+    "/home/cxh/Downloads/cmu_data/CMU",
+    sub_dataset_id="CMU",
+    body_model_gender="male",
+    subject_id="10",
+    sequence_id=1,
+    frame_id=600
+)
     
     # Set light
     light = bproc.types.Light()
@@ -25,5 +33,7 @@ if __name__ == "__main__":
     #bproc.writer.write_blend("output/output.blend")
     # Print the output path
     # write hdf5 file
-    bproc.writer.write_hdf5("output/output.hdf5", data)
+    bproc.writer.write_hdf5("output/", data)
+
+
     
