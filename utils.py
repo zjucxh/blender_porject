@@ -77,6 +77,8 @@ def smplh2x(smplh, smplx):
     # print mocap_framerate
     print(f"mocap_framerate: {mocap_framerate}")
 
+# TODO Reimplement cloth simulation for smplh according to archived code
+
     return smplx  # Return the original for now
 if __name__ == "__main__":
     # Example usage
