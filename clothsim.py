@@ -1,11 +1,10 @@
-#import blenderproc as bproc
+import blenderproc as bproc
 import os
 import bpy
 import cv2
 import numpy as np
 from types import SimpleNamespace as SN
 from mathutils import Matrix, Vector, Quaternion, Euler
-#from utils import load_smplx, load_smplh
 
 # SMPL body model
 class SMPLModel():
@@ -58,9 +57,9 @@ class SMPLModel():
         self.armature.scale = [100, 100, 100] # Scale for accurate simulation
 
         # Load tshirt obj file
-        bpy.ops.wm.obj_import(filepath=os.path.join('assets/', 'tshirt.obj'))
+        #bpy.ops.wm.obj_import(filepath=os.path.join('assets/', 'tshirt.obj'))
                                     #axis_forward='-Z', axis_up='Y')
-        self.tshirt = bpy.data.objects['tshirt']
+        #self.tshirt = bpy.data.objects['tshirt']
         #self.tshirt.scale = [.01, .01, .01] 
         bpy.context.view_layer.update() # Update the scene
 
@@ -135,7 +134,7 @@ class SMPLModel():
             pose_path (str): Path to the pose file.
 
         Returns:
-            np.ndarray: Array of poses.
+            dict: Dictionary containing pose data.
         """
         if not os.path.exists(pose_path):
             raise FileNotFoundError(f"Pose file not found: {pose_path}")
@@ -143,11 +142,11 @@ class SMPLModel():
         # load npz 
 
         animation = np.load(pose_path, allow_pickle=True)
-        keys = list(animation.keys())
-        for key in keys:
-            print(f"{key}: {animation[key].shape}") 
+        #keys = list(animation.keys())
+        #for key in keys:
+        #    print(f"{key}: {animation[key].shape}") 
         # print mocap_framerate
-        print(f"mocap_framerate: {animation['mocap_framerate']}")
+        #print(f"mocap_framerate: {animation['mocap_framerate']}")
         return animation
     
     def visualize(self, npz_data:str):
@@ -167,28 +166,16 @@ class SMPLModel():
             # apply shape and pose
             self.apply_shape_pose(betas, p, frame=i)
 
+    # TODO cloth simulation for imported SMPL model
+    def simulate(self):
+        raise NotImplementedError("Cloth simulation is not implemented yet. Please implement the simulate method.")
+
 if __name__ == "__main__":
     # initialize BlenderProc
-    #bproc.init()
+    bproc.init()
     # Create instance of SMPLModel
     smpl_model = SMPLModel()
     smpl_model.visualize('assets/smplh_poses.npz')
-    ## Load smplh pose data from npz file     
-    #poses = smpl_model.load_smplh('assets/smplh_poses.npz')
-    #betas = poses['betas'][:10]  # shape parameters
-    #pose = poses['poses'][:,:72]  # pose parameters
-    #pose[:,66:72] = 0.0  # rest hand pose
+    
 
-    # print 
-
-    # print the shape and pose data
-    #print(f"betas shape: {betas.shape}, pose shape: {pose.shape}")
-
-    # apply shape and pose to frame in blender
-    #for i, p in enumerate(pose):
-    #    print(f"Applying shape and pose for frame {i}")
-    #    # apply shape and pose
-    #    smpl_model.apply_shape_pose(betas, p, frame=i)
-
-    # update the scene
-    #bpy.context.view_layer.update()
+    
