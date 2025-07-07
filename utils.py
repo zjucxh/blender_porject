@@ -1,6 +1,7 @@
 import numpy as np
 import bpy
 import os
+from scipy.spatial.transform import Rotation as R
 
 # Load obj file
 def load_obj(filename, tex_coords=False):
@@ -62,7 +63,51 @@ def load_cmu(pose_path:str):
     print(f"mocap_framerate: {animation['mocap_frame_rate']}")
     return animation
 
+def separate_arms(poses, angle=20, left_arm=17, right_arm=16):
+    num_joints = poses.shape[-1] //3
 
+    poses = poses.reshape((-1, num_joints, 3))
+    rot = R.from_euler('z', -angle, degrees=True)
+    poses[:, left_arm] = (rot * R.from_rotvec(poses[:, left_arm])).as_rotvec()
+    rot = R.from_euler('z', angle, degrees=True)
+    poses[:, right_arm] = (rot * R.from_rotvec(poses[:, right_arm])).as_rotvec()
+
+    poses[:, 23] *= 0.1
+    poses[:, 22] *= 0.1
+
+    return poses.reshape((poses.shape[0], -1))
+
+def finite_diff(x, h, diff=1):
+    if diff == 0:
+        return x
+
+    v = np.zeros(x.shape, dtype=x.dtype)
+    v[1:] = (x[1:] - x[0:-1]) / h
+
+    return finite_diff(v, h, diff-1)
+
+def load_motion(path):
+    motion = np.load(path, mmap_mode='r')
+
+    reduce_factor = int(motion['mocap_framerate'] // 30)
+    pose = motion['poses'][::reduce_factor, :72]
+    trans = motion['trans'][::reduce_factor, :]
+    betas = motion['betas'][:10]  # smpl betas
+    separate_arms(pose)
+
+    # Swap axes
+    swap_rotation = R.from_euler('zx', [-90, 270], degrees=True)
+    root_rot = R.from_rotvec(pose[:, :3])
+    pose[:, :3] = (swap_rotation * root_rot).as_rotvec()
+    trans = swap_rotation.apply(trans)
+
+    # Center model in first frame
+    trans = trans - trans[0] 
+
+    # Compute velocities
+    trans_vel = finite_diff(trans, 1 / 30)
+
+    return pose.astype(np.float32), betas.astype(np.float32), trans.astype(np.float32), trans_vel.astype(np.float32)
 # Check CMU_SNUG data integrity
 # TODO align motion data with obj file. SNUG data samples motion data with reduce_factor=framerate//30
 def check_cmu_snug_data(data_dir:str="/home/cxh/mnt/cxh/Documents/CMU_SNUG"):
@@ -90,9 +135,9 @@ def check_cmu_snug_data(data_dir:str="/home/cxh/mnt/cxh/Documents/CMU_SNUG"):
                 # body obj file path 
                 body_obj_path = os.path.join(obj_dir, 'body_{0:0>4}.obj'.format(0))
                 try:
-                    animation = np.load(motion_path, allow_pickle=True)
-                    pose_len = animation['poses'].shape[0]
-                    print(f"Pose length: {pose_len}")
+                    poses, betas, trans, trans_vel = load_motion(motion_path)
+                    pose_len = poses.shape[0]
+                    print(f"Pose length: {poses.shape[0]}")
                     for i in range(pose_len):
                         # load body and tshirt obj file
                         body_obj_path = os.path.join(obj_dir, 'body_{0:0>4}.obj'.format(i))
