@@ -2,6 +2,7 @@ import numpy as np
 import bpy
 import os
 from scipy.spatial.transform import Rotation as R
+import h5py
 
 # Load obj file
 def load_obj(filename, tex_coords=False):
@@ -108,52 +109,69 @@ def load_motion(path):
     trans_vel = finite_diff(trans, 1 / 30)
 
     return pose.astype(np.float32), betas.astype(np.float32), trans.astype(np.float32), trans_vel.astype(np.float32)
-# Check CMU_SNUG data integrity
-# TODO align motion data with obj file. SNUG data samples motion data with reduce_factor=framerate//30
-def check_cmu_snug_data(data_dir:str="/home/cxh/mnt/cxh/Documents/CMU_SNUG"):
+# Create HDF5 file from CMU SNUG data
+def create_hdf5(data_dir:str="/home/cxh/Documents/OBJ/CMU_SNUG"):
     """
-    Check the integrity of CMU SNUG data.
+    Create HDF5 file from CMU SNUG data.
     
     Args:
         data_dir (str): Directory containing the CMU SNUG data.
         
     Returns:
-        bool: True if data is valid, False otherwise.
+        Bool: True if HDF5 file created successfully, False otherwise.
     """
     if not os.path.exists(data_dir):
         print(f"Data directory does not exist: {data_dir}")
         return False
+    with h5py.File('assets/cmu_snug.h5', 'w') as h5f:
+        # walk through the directory get .npz file
+        for dirs, dir_name, files in os.walk(data_dir):
+            for file in files:
+                if file.endswith('.npz'):
+                    print(f' dirs : {dirs}')
+                    print(f' dir_name : {dir_name}')
+                    print(f' file name : {file}')
+                    motion_path = os.path.join(dirs, file) # cmu npz motion data path
+                    obj_dir = os.path.join(dirs, file.split('_')[1])
+                    # body obj file path 
+                    body_obj_path = os.path.join(obj_dir, 'body_{0:0>4}.obj'.format(0))
+                    try:
+                        poses, betas, trans, trans_vel = load_motion(motion_path) # motion data
 
-    # walk through the directory get .npz file
-    for dirs, dir_name, files in os.walk(data_dir):
-        for file in files:
-            if file.endswith('.npz'):
-                print(f' dirs : {dirs}')
-                print(f' file name : {file}')
-                motion_path = os.path.join(dirs, file) # cmu npz motion data path
-                obj_dir = os.path.join(dirs, file.split('_')[1])
-                # body obj file path 
-                body_obj_path = os.path.join(obj_dir, 'body_{0:0>4}.obj'.format(0))
-                try:
-                    poses, betas, trans, trans_vel = load_motion(motion_path)
-                    pose_len = poses.shape[0]
-                    print(f"Pose length: {poses.shape[0]}")
-                    for i in range(pose_len):
-                        # load body and tshirt obj file
-                        body_obj_path = os.path.join(obj_dir, 'body_{0:0>4}.obj'.format(i))
-                        tshirt_obj_path = os.path.join(obj_dir, 'tshirt_{0:0>4}.obj'.format(i))
-                        # Load obj file
-                        body_v, body_f = load_obj(body_obj_path)
-                        tshirt_v, tshirt_f = load_obj(tshirt_obj_path)
-                        print(f"Loaded body and tshirt obj files for frame {i}")
+                        # prepare group in hdf5 file
+                        grp = h5f.create_group(file[:-4])
+                        grp.create_dataset('betas', data=betas)
+                        grp.create_dataset('poses', data=poses)
+                        grp.create_dataset('trans', data=trans)
+                        grp.create_dataset('trans_vel', data=trans_vel)
 
-                except Exception as e:
-                    print(f"Error loading {file}: {e}")
-                    return False 
+                        pose_len = poses.shape[0]
+                        #print(f"Pose length: {poses.shape[0]}")
+                        body_vs = [] # body vertex sequence
+                        tshirt_vs = [] # tshirt vertex sequence
+                        for i in range(pose_len):
+                            # load body and tshirt obj file
+                            body_obj_path = os.path.join(obj_dir, 'body_{0:0>4}.obj'.format(i))
+                            tshirt_obj_path = os.path.join(obj_dir, 'tshirt_{0:0>4}.obj'.format(i))
+                            # Load obj file
+                            body_v, body_f = load_obj(body_obj_path)
+                            tshirt_v, tshirt_f = load_obj(tshirt_obj_path)
+                            body_vs.append(body_v)
+                            tshirt_vs.append(tshirt_v)
+                            #print(f"Loaded body and tshirt obj files for frame {i}")
+                        # Store as arrays
+                        grp.create_dataset('body_seq', data=np.array(body_vs))
+                        grp.create_dataset('tshirt_seq', data=np.array(tshirt_vs))
+
+
+                    except Exception as e:
+                        print(f"Error loading {file}: {e}")
+                        return False 
+    print("HDF5 file created successfully.")
     return True
 
 if __name__ == "__main__":
     # check cmu snug data integrity
     data_dir = "/home/cxh/mnt/cxh/Documents/CMU_SNUG"
-    check_cmu_snug_data(data_dir)
+    create_hdf5(data_dir)
     print('Done')     
