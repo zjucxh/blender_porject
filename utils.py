@@ -110,7 +110,7 @@ def load_motion(path):
 
     return pose.astype(np.float32), betas.astype(np.float32), trans.astype(np.float32), trans_vel.astype(np.float32)
 # Create HDF5 file from CMU SNUG data
-def create_hdf5(data_dir:str="/home/cxh/Documents/OBJ/CMU_SNUG"):
+def create_hdf5(data_dir:str="/home/cxh/Documents/OBJ/CMU_SNUG_MINI", output_path:str="assets/cmu_snug_mini.h5"):
     """
     Create HDF5 file from CMU SNUG data.
     
@@ -123,7 +123,7 @@ def create_hdf5(data_dir:str="/home/cxh/Documents/OBJ/CMU_SNUG"):
     if not os.path.exists(data_dir):
         print(f"Data directory does not exist: {data_dir}")
         return False
-    with h5py.File('assets/cmu_snug.h5', 'w') as h5f:
+    with h5py.File(output_path, 'w') as h5f:
         # walk through the directory get .npz file
         for dirs, dir_name, files in os.walk(data_dir):
             for file in files:
@@ -172,6 +172,6 @@ def create_hdf5(data_dir:str="/home/cxh/Documents/OBJ/CMU_SNUG"):
 
 if __name__ == "__main__":
     # check cmu snug data integrity
-    data_dir = "/home/cxh/mnt/cxh/Documents/CMU_SNUG"
-    create_hdf5(data_dir)
+    data_dir = "/home/cxh/Documents/OBJ/CMU_SNUG_MINI"
+    create_hdf5(data_dir,'assets/cmu_snug_mini.h5')
     print('Done')     
