@@ -1,4 +1,6 @@
 import numpy as np
+np.finfo(np.dtype("float32"))
+np.finfo(np.dtype("float64"))
 import bpy
 import os
 from scipy.spatial.transform import Rotation as R
@@ -170,8 +172,58 @@ def create_hdf5(data_dir:str="/home/cxh/Documents/OBJ/CMU_SNUG_MINI", output_pat
     print("HDF5 file created successfully.")
     return True
 
+# Read HDF5 file
+def read_hdf5(file_path:str, index:int=0):
+    """
+    Read HDF5 file and return motion data.
+    """
+    if not os.path.exists(file_path):
+        print(f"File does not exist: {file_path}")
+        return None
+
+    with h5py.File(file_path, 'r') as h5f:
+        motion_data = {}
+
+        keys = list(h5f.keys())
+
+        if index < len(keys):
+            key = keys[index]
+            item = h5f[key]
+            motion_data['betas'] = item['betas'][:]
+            motion_data['poses'] = item['poses'][:]
+            motion_data['trans'] = item['trans'][:]
+            motion_data['trans_vel'] = item['trans_vel'][:]
+
+            return motion_data
+        else:
+            print(f"Index out of range: {index}")
+            return None 
+            #    'body_seq': h5f[key]['body_seq'][:],
+            #    'tshirt_seq': h5f[key]['tshirt_seq'][:],
+            #}
+
+    return item
+
+
+
+
 if __name__ == "__main__":
+
+    # create h5 file
+    #create_hdf5(data_dir="/home/cxh/Documents/OBJ/CMU_SNUG_MINI", output_path="assets/cmu_snug_mini.h5")
+
+    # Add garment and body mesh faces to hdf5 file
+    #with h5py.File("/home/cxh/mnt/cxh/Documents/dataset/CMU_SNUG/cmu_snug.h5", 'a') as h5f:
+    #    # create face group
+    #    face_grp = h5f.create_group('faces')
+    #    # add body and tshirt faces
+    #    _, body_faces = load_obj("/home/cxh/Documents/OBJ/CMU_SNUG_MINI/10/01/body_0000.obj")
+    #    _, tshirt_faces = load_obj("/home/cxh/Documents/OBJ/CMU_SNUG_MINI/10/01/tshirt_0000.obj")
+    #    face_grp.create_dataset('body_faces', data=body_faces+1) # +1 to make it 1-based index
+    #    face_grp.create_dataset('tshirt_faces', data=tshirt_faces+1) # +1 to make it 1-based index
+
     # check cmu snug data integrity
-    data_dir = "/home/cxh/Documents/OBJ/CMU_SNUG_MINI"
-    create_hdf5(data_dir,'assets/cmu_snug_mini.h5')
+    #data_dir = "/home/cxh/Documents/OBJ/CMU_SNUG_MINI"
+    #item = read_hdf5("assets/cmu_snug_mini.h5", 6)
+    #print(' item : {0}'.format(item))
     print('Done')     
