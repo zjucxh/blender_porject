@@ -126,6 +126,10 @@ def create_hdf5(data_dir:str="/home/cxh/Documents/OBJ/CMU_SNUG_MINI", output_pat
         print(f"Data directory does not exist: {data_dir}")
         return False
     with h5py.File(output_path, 'w') as h5f:
+        # create faces group
+        face_grp = h5f.create_group('faces')
+        body_faces = []
+        tshirt_faces = []
         # walk through the directory get .npz file
         for dirs, dir_name, files in os.walk(data_dir):
             for file in files:
@@ -157,18 +161,22 @@ def create_hdf5(data_dir:str="/home/cxh/Documents/OBJ/CMU_SNUG_MINI", output_pat
                             tshirt_obj_path = os.path.join(obj_dir, 'tshirt_{0:0>4}.obj'.format(i))
                             # Load obj file
                             body_v, body_f = load_obj(body_obj_path)
+                            body_faces = body_f + 1 # +1 to make it 1-based index
                             tshirt_v, tshirt_f = load_obj(tshirt_obj_path)
+                            tshirt_faces = tshirt_f + 1 # +1 to make it 1-based index
                             body_vs.append(body_v)
                             tshirt_vs.append(tshirt_v)
                             #print(f"Loaded body and tshirt obj files for frame {i}")
                         # Store as arrays
                         grp.create_dataset('body_seq', data=np.array(body_vs))
                         grp.create_dataset('tshirt_seq', data=np.array(tshirt_vs))
-
+        
 
                     except Exception as e:
                         print(f"Error loading {file}: {e}")
                         return False 
+        face_grp.create_dataset('body_faces', data=body_faces) # store body faces
+        face_grp.create_dataset('tshirt_faces', data=tshirt_faces) # store tshirt
     print("HDF5 file created successfully.")
     return True
 
@@ -185,45 +193,29 @@ def read_hdf5(file_path:str, index:int=0):
         motion_data = {}
 
         keys = list(h5f.keys())
-
-        if index < len(keys):
+        print(' keys : {0}'.format(keys))
+        if index < len(keys)-1: # exclude face key 
             key = keys[index]
             item = h5f[key]
             motion_data['betas'] = item['betas'][:]
             motion_data['poses'] = item['poses'][:]
             motion_data['trans'] = item['trans'][:]
             motion_data['trans_vel'] = item['trans_vel'][:]
-
+            motion_data['body_seq'] = item['body_seq'][:]
+            motion_data['tshirt_seq'] = item['tshirt_seq'][:]
+            motion_data['body_faces'] = h5f['faces/body_faces'][:]
+            motion_data['tshirt_faces'] = h5f['faces/tshirt_faces'][:]
             return motion_data
         else:
             print(f"Index out of range: {index}")
             return None 
-            #    'body_seq': h5f[key]['body_seq'][:],
-            #    'tshirt_seq': h5f[key]['tshirt_seq'][:],
-            #}
-
     return item
 
 
 
 
 if __name__ == "__main__":
-
-    # create h5 file
-    #create_hdf5(data_dir="/home/cxh/Documents/OBJ/CMU_SNUG_MINI", output_path="assets/cmu_snug_mini.h5")
-
-    # Add garment and body mesh faces to hdf5 file
-    #with h5py.File("/home/cxh/mnt/cxh/Documents/dataset/CMU_SNUG/cmu_snug.h5", 'a') as h5f:
-    #    # create face group
-    #    face_grp = h5f.create_group('faces')
-    #    # add body and tshirt faces
-    #    _, body_faces = load_obj("/home/cxh/Documents/OBJ/CMU_SNUG_MINI/10/01/body_0000.obj")
-    #    _, tshirt_faces = load_obj("/home/cxh/Documents/OBJ/CMU_SNUG_MINI/10/01/tshirt_0000.obj")
-    #    face_grp.create_dataset('body_faces', data=body_faces+1) # +1 to make it 1-based index
-    #    face_grp.create_dataset('tshirt_faces', data=tshirt_faces+1) # +1 to make it 1-based index
-
-    # check cmu snug data integrity
-    #data_dir = "/home/cxh/Documents/OBJ/CMU_SNUG_MINI"
-    #item = read_hdf5("assets/cmu_snug_mini.h5", 6)
-    #print(' item : {0}'.format(item))
-    print('Done')     
+    item = read_hdf5("assets/cmu_snug_mini.h5", 2)
+    print('item pose: {0}'.format(item['poses'].shape))
+    print('body seq: {0}'.format(item['body_seq'].shape))
+    print('Done') 
