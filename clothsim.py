@@ -4,10 +4,11 @@ sys.path.append('.')
 import os
 import bpy
 import cv2
+import math
 import numpy as np
 from types import SimpleNamespace as SN
 from mathutils import Matrix, Vector, Quaternion, Euler
-from utils import load_motion
+from utils import load_motion, read_hdf5, alignfbx
 
 # SMPL body model
 class SMPLModel():
@@ -96,12 +97,12 @@ class SMPLModel():
     
     # Apply shape and pose to frame in blender
     def apply_shape_pose(self, beta, pose, frame):
-        # set beta parameter ranges from -10 to 10
+        # set beta parameter ranges from -5 to 5
         for k in self.body.data.shape_keys.key_blocks.keys():
-            self.body.data.shape_keys.key_blocks[k].slider_min = -10
-            self.body.data.shape_keys.key_blocks[k].slider_max = 10
-            bpy.data.shape_keys['Key'].key_blocks[k].slider_max = 10
-            bpy.data.shape_keys['Key'].key_blocks[k].slider_min = -10
+            self.body.data.shape_keys.key_blocks[k].slider_min = -5
+            self.body.data.shape_keys.key_blocks[k].slider_max = 5
+            bpy.data.shape_keys['Key'].key_blocks[k].slider_max = 5
+            bpy.data.shape_keys['Key'].key_blocks[k].slider_min = -5
         mpose = np.zeros(shape=(self.n_bones, 3, 3), dtype=np.float32)
         pose = pose.reshape(-1, 3)
         _, bshapes = self.rodrigues2bshapes(pose)
@@ -111,8 +112,8 @@ class SMPLModel():
             mrot = self.rodrigues(p)
             mpose[i] = mrot
             bone = self.armature.pose.bones[self.bone_name(i, bodyname=f'{self.gender}_avg')]
-            if i == 0:
-                bone.location = [0, 0, 0]
+            #if i == 0:
+            #    bone.location = [0, 0, 0]
             bone.rotation_quaternion = Matrix(mrot).to_quaternion()
             bone.keyframe_insert('rotation_quaternion', frame=frame)
         for ibeta, val in enumerate(beta):
@@ -159,6 +160,8 @@ class SMPLModel():
         Args:
             npz_data (str): Path to the npz file containing pose data.
         """
+
+
         poses, betas, trans, trans_vel = load_motion(npz_data)  # SNUG implementation of loading motion data
         #poses = self.load_cmu(npz_data)
         #betas = poses['betas'][:10]  # shape parameters
@@ -171,24 +174,46 @@ class SMPLModel():
             # apply shape and pose
             self.apply_shape_pose(betas, p, frame=i+1)  # frame starts from 1 in Blender
 
-    # TODO cloth simulation for imported SMPL model
-    def simulate(self, motion_path:str):
-        # import cmu motion data to blender
-        poses, betas, trans, trans_vec = load_motion(motion_path)
-        # Load initial garment obj predicted from SNUG
-        bpy.ops.wm.obj_import(filepath=os.path.join('assets/objseq', 'tshirt.obj'),
-                                                       axis_forward='-Z', axis_up='Y')
-        # Scale, align to fbx 
-        # configure blender simulation settings
+    def simulate(self, h5_data:str, index:int=0):
+        """
+        Visualize and simulate the SMPLH pose data from an HDF5 file in Blender.
+        """
+        data = read_hdf5(h5_data, index)
+        poses = data['poses']
+        betas = data['betas']  # shape parameters
+        trans = data['trans']  # translation parameters
+        trans_vec = data['trans_vel']  # translation velocity
+        body_seq = data['body_seq']
+        body_faces = data['body_faces']
+        tshirt_seq = data['tshirt_seq']
+        tshirt_faces = data['tshirt_faces']
+        #print('sequence 0 body vertex shape: {0}'.format(body_seq[0].shape))
 
-        #raise NotImplementedError("Cloth simulation is not implemented yet. Please implement the simulate method.")
+        #print('len poses: {0}'.format(poses.shape[0]))
+
+        # import garment mesh to fbx model
+        transformed_vertices = alignfbx(tshirt_seq[0])
+        garment_mesh = bpy.data.meshes.new('garment_mesh')
+        garment_mesh.from_pydata(transformed_vertices, [], tshirt_faces-1)
+        garment_mesh.update()
+        garment_mesh.validate()
+        obj = bpy.data.objects.new('tshirt', garment_mesh)
+        bpy.context.collection.objects.link(obj)
+        # apply shape and pose to frame in blender
+        for i, p in enumerate(poses):
+            print(f"Applying shape and pose for frame {i}")
+            # apply shape and pose
+            self.apply_shape_pose(betas, p, frame=i+1)
+
 
 if __name__ == "__main__":
     # initialize BlenderProc
     #bproc.init()
     # Create instance of SMPLModel
     smpl_model = SMPLModel()
-    smpl_model.visualize('assets/objseq/13_11_poses.npz')
+    smpl_model.simulate('assets/cmu_snug_mini.h5',2)
+    #smpl_model.visualize('/home/cxh/Documents/OBJ/CMU_SNUG_MINI/09/09_01_poses.npz')
+
     
 
     
