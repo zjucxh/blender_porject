@@ -236,8 +236,29 @@ def alignfbx(vertices:np.ndarray):
 
     return transformed_vertices
 
+def interpolate_motion(beta_from:np.ndarray, beta_to:np.ndarray, pose_from:np.ndarray, pose_to:np.ndarray, num_frames:int) -> np.ndarray:
+    """
+    Interpolate between two sets of SMPL shape parameters.
 
+    Args:
+        beta_from (np.ndarray): The starting shape parameters.
+        beta_to (np.ndarray): The ending shape parameters.
+        pose_from (np.ndarray): The starting pose parameters.
+        pose_to (np.ndarray): The ending pose parameters.
+        num_frames (int): The number of frames to interpolate.
 
+    Returns:
+        np.ndarray: The interpolated shape parameters.
+    """
+    betas = np.zeros((num_frames, beta_from.shape[0]), dtype=np.float32)
+    poses = np.zeros((num_frames, pose_from.shape[0]), dtype=np.float32)
+
+    for i in range(num_frames):
+        alpha = i / (num_frames - 1)  # Normalized interpolation factor
+        betas[i] = beta_from * (1 - alpha) + beta_to * alpha
+        poses[i] = pose_from * (1 - alpha) + pose_to * alpha
+
+    return betas, poses
 if __name__ == "__main__":
     item = read_hdf5("assets/cmu_snug_mini.h5", 2)
     print('item pose: {0}'.format(item['poses'].shape))
