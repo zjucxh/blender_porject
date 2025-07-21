@@ -8,7 +8,7 @@ import math
 import numpy as np
 from types import SimpleNamespace as SN
 from mathutils import Matrix, Vector, Quaternion, Euler
-from utils import load_motion, read_hdf5, alignfbx
+from utils import load_motion, read_hdf5, interpolate_motion
 
 # SMPL body model
 class SMPLModel():
@@ -99,10 +99,10 @@ class SMPLModel():
     def apply_shape_pose(self, beta, pose, frame):
         # set beta parameter ranges from -5 to 5
         for k in self.body.data.shape_keys.key_blocks.keys():
-            self.body.data.shape_keys.key_blocks[k].slider_min = -5
-            self.body.data.shape_keys.key_blocks[k].slider_max = 5
-            bpy.data.shape_keys['Key'].key_blocks[k].slider_max = 5
-            bpy.data.shape_keys['Key'].key_blocks[k].slider_min = -5
+            self.body.data.shape_keys.key_blocks[k].slider_min = -10
+            self.body.data.shape_keys.key_blocks[k].slider_max = 10
+            bpy.data.shape_keys['Key'].key_blocks[k].slider_max = 10
+            bpy.data.shape_keys['Key'].key_blocks[k].slider_min = -10
         mpose = np.zeros(shape=(self.n_bones, 3, 3), dtype=np.float32)
         pose = pose.reshape(-1, 3)
         _, bshapes = self.rodrigues2bshapes(pose)
@@ -112,8 +112,8 @@ class SMPLModel():
             mrot = self.rodrigues(p)
             mpose[i] = mrot
             bone = self.armature.pose.bones[self.bone_name(i, bodyname=f'{self.gender}_avg')]
-            #if i == 0:
-            #    bone.location = [0, 0, 0]
+            if i == 0:
+                bone.location = [0, 0, 0]
             bone.rotation_quaternion = Matrix(mrot).to_quaternion()
             bone.keyframe_insert('rotation_quaternion', frame=frame)
         for ibeta, val in enumerate(beta):
@@ -192,18 +192,30 @@ class SMPLModel():
         #print('len poses: {0}'.format(poses.shape[0]))
 
         # import garment mesh to fbx model
-        transformed_vertices = alignfbx(tshirt_seq[0])
-        garment_mesh = bpy.data.meshes.new('garment_mesh')
-        garment_mesh.from_pydata(transformed_vertices, [], tshirt_faces-1)
-        garment_mesh.update()
-        garment_mesh.validate()
-        obj = bpy.data.objects.new('tshirt', garment_mesh)
-        bpy.context.collection.objects.link(obj)
+        #transformed_vertices = alignfbx(tshirt_seq[0])
+        #garment_mesh = bpy.data.meshes.new('garment_mesh')
+        #garment_mesh.from_pydata(transformed_vertices, [], tshirt_faces-1)
+        #garment_mesh.update()
+        #garment_mesh.validate()
+        #obj = bpy.data.objects.new('tshirt', garment_mesh)
+        #bpy.context.collection.objects.link(obj)
+        # Iterpoplate skinny shape and rest pose to -30 frame
+        skinny_shape = np.array([0, 5, 2, 3, 7, -4, 1, 2, 4, -1], dtype=np.float32)
+        rest_pose = np.zeros(72, dtype=np.float32)
+        last_betas = betas
+        last_pose = poses[0]
+        # interpolate motion from -30 frame to 0 frame
+        interpolated_betas, interpolated_poses = interpolate_motion(skinny_shape, betas, \
+                                                                    rest_pose, last_pose, num_frames=30)
+        
+        for i, p in enumerate(interpolated_poses):
+            # apply shape and pose
+            self.apply_shape_pose(interpolated_betas[i], p, frame=i+1)
         # apply shape and pose to frame in blender
         for i, p in enumerate(poses):
             print(f"Applying shape and pose for frame {i}")
             # apply shape and pose
-            self.apply_shape_pose(betas, p, frame=i+1)
+            self.apply_shape_pose(betas, p, frame=i+1+30)
 
 
 if __name__ == "__main__":
