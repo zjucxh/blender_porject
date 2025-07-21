@@ -2,6 +2,7 @@ import numpy as np
 np.finfo(np.dtype("float32"))
 np.finfo(np.dtype("float64"))
 import bpy
+import math
 import os
 from scipy.spatial.transform import Rotation as R
 import h5py
@@ -211,6 +212,29 @@ def read_hdf5(file_path:str, index:int=0):
             return None 
     return item
 
+def alignfbx(vertices:np.ndarray):
+    """
+    Align vertices to FBX model 
+    Args: 
+        vertices: np.ndarray, obj vertices to align
+        
+    returns:
+        np.ndarray: aligned vertices
+    """
+    transformed_vertices = vertices.copy()
+    # Rotate 90 degrees around x-axis, scale up to 100, translate along z-axis to 121.618 cm
+    angle = math.radians(90)  # rotate the body by 90 degrees
+    rotation_matrix = np.array([[1, 0, 0],
+                                [0, np.cos(angle), -np.sin(angle)],
+                                [0, np.sin(angle), np.cos(angle)]])
+    transformed_vertices = transformed_vertices @ rotation_matrix.T  # Apply rotation to the first frame vertices
+    # scale to 100
+    transformed_vertices *= 100.0  # Scale the vertices to match the Blender scale
+    transformed_vertices = np.ascontiguousarray(transformed_vertices) # Ensure the array is contiguous in memory
+    # translate along z-axis
+    transformed_vertices += np.array([0, 0, 121.618])
+
+    return transformed_vertices
 
 
 
