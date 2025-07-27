@@ -236,6 +236,23 @@ def alignfbx(vertices:np.ndarray):
 
     return transformed_vertices
 
+def create_mesh(vertices:np.ndarray, faces:np.ndarray, mesh_name:str):
+    """
+    Create mesh object in blender
+    Args:
+        vertices: np.ndarray, vertices of mesh
+        faces: np.ndarray, faces of mesh
+        
+    """
+    mesh = bpy.data.meshes.new(mesh_name)
+    mesh.from_pydata(vertices, [], faces)
+    mesh.update()
+    mesh.validate()
+    # create object
+    obj = bpy.data.objects.new(mesh_name, mesh)
+    # link object to scene
+    bpy.context.collection.objects.link(obj)
+
 def interpolate_motion(beta_from:np.ndarray, beta_to:np.ndarray, pose_from:np.ndarray, pose_to:np.ndarray, num_frames:int) -> np.ndarray:
     """
     Interpolate between two sets of SMPL shape parameters.
