@@ -174,58 +174,111 @@ class SMPLModel():
             # apply shape and pose
             self.apply_shape_pose(betas, p, frame=i+1)  # frame starts from 1 in Blender
 
-    def simulate(self, h5_data:str, index:int=0):
+    def simulate(self, pose_data:str):
         """
-        Visualize and simulate the SMPLH pose data from an HDF5 file in Blender.
+        Visualize and simulate the SMPLH pose data from an npz file in Blender.
+        simulation settings:
+        cloth: preset cotton, collision quality 5, self-collision checked, solidify modifier added, 
+                thickness is set to 0.1 m (1 mm in actual world due to scale)
+        smpl body set collision quality to default
         """
-        data = read_hdf5(h5_data, index)
-        poses = data['poses']
-        betas = data['betas']  # shape parameters
-        trans = data['trans']  # translation parameters
-        trans_vec = data['trans_vel']  # translation velocity
-        body_seq = data['body_seq']
-        body_faces = data['body_faces']
-        tshirt_seq = data['tshirt_seq']
-        tshirt_faces = data['tshirt_faces']
-        #print('sequence 0 body vertex shape: {0}'.format(body_seq[0].shape))
-
-        #print('len poses: {0}'.format(poses.shape[0]))
-
-        # import garment mesh to fbx model
-        #transformed_vertices = alignfbx(tshirt_seq[0])
-        #garment_mesh = bpy.data.meshes.new('garment_mesh')
-        #garment_mesh.from_pydata(transformed_vertices, [], tshirt_faces-1)
-        #garment_mesh.update()
-        #garment_mesh.validate()
-        #obj = bpy.data.objects.new('tshirt', garment_mesh)
-        #bpy.context.collection.objects.link(obj)
+        animation = self.load_cmu(pose_data) # animation contains keys: grans, gender, mocap_framerate, betas, dmpls, poses
+        betas = animation['betas'][:10]
+        print(f' betas : {betas}')
+        poses = animation['poses'][:,:72]
+        trans = animation['trans']
+        gender = animation['gender'] # male or female
+        mocap_framerate = np.int32(animation['mocap_framerate']) # 120
+        dmpls = animation['dmpls']
+        frame_end = np.min([poses.shape[0], 250])
+        print(f' pose shape : {poses.shape}')
+        print(f' frame end : {frame_end}')
+        
+        print('betas : {0}'.format(betas))
+        bpy.data.scenes["Scene"].frame_end = frame_end + mocap_framerate
         # Iterpoplate skinny shape and rest pose to -30 frame
         skinny_shape = np.array([0, 5, 2, 3, 7, -4, 1, 2, 4, -1], dtype=np.float32)
         rest_pose = np.zeros(72, dtype=np.float32)
-        last_betas = betas
+        
+        last_betas = betas[:10]
         last_pose = poses[0]
         # interpolate motion from -30 frame to 0 frame
-        interpolated_betas, interpolated_poses = interpolate_motion(skinny_shape, betas, \
-                                                                    rest_pose, last_pose, num_frames=30)
-        
+        interpolated_betas, interpolated_poses = interpolate_motion(skinny_shape, last_betas, \
+                                                                    rest_pose, last_pose, \
+                                                                    num_frames=np.int32(mocap_framerate)) # 1 second
+
+        print("Applying shape and poses...")
         for i, p in enumerate(interpolated_poses):
             # apply shape and pose
-            self.apply_shape_pose(interpolated_betas[i], p, frame=i+1)
+            self.apply_shape_pose(interpolated_betas[i], p, frame=i+1) #frame from 1 to 120 
         # apply shape and pose to frame in blender
         for i, p in enumerate(poses):
-            print(f"Applying shape and pose for frame {i}")
             # apply shape and pose
-            self.apply_shape_pose(betas, p, frame=i+1+30)
+            self.apply_shape_pose(betas, p, frame=i+1+mocap_framerate)
+        print(' Done')
+        # Jump to starting point 
+        bpy.ops.screen.frame_jump(end=False)
+        self.deselect()
+        avg = bpy.data.objects[self.obname]
+        avg.select_set(True)
+        bpy.context.view_layer.objects.active = avg
+        # add collision modifier 
+        bpy.ops.object.modifier_add(type='COLLISION')
+        self.deselect()
+        # import cloth to blender
+        bpy.ops.import_scene.obj(filepath='assets/meshes/tshirt_snug.obj')
+        tshirt = bpy.data.objects['tshirt']
+        tshirt.select_set(True) # select tshirt
+        # set physical properties
+        bpy.context.view_layer.objects.active = tshirt
+        bpy.ops.object.modifier_add(type='CLOTH')
+        bpy.context.object.modifiers['Cloth'].settings.quality = 5
+        bpy.context.object.modifiers['Cloth'].settings.tension_stiffness = 15
+        bpy.context.object.modifiers['Cloth'].settings.compression_stiffness = 15
+        bpy.context.object.modifiers['Cloth'].settings.shear_stiffness = 5
+        bpy.context.object.modifiers['Cloth'].settings.bending_stiffness = 0.5
+        bpy.context.object.modifiers['Cloth'].collision_settings.use_self_collision = True
+        bpy.context.object.modifiers['Cloth'].collision_settings.collision_quality = 10
+        bpy.ops.object.modifier_add(type='COLLISION')
+        bpy.ops.object.modifier_add(type='SOLIDIFY') # add solidify modifier 
+        bpy.context.object.modifiers["Solidify"].thickness = 0.1 # 1 mm thickness
 
+        # Bake
+        bpy.context.scene.render.engine = 'CYCLES'
+        bpy.context.scene.cycles.device = 'CPU'  
+        bpy.context.object.modifiers['Cloth'].point_cache.frame_end = frame_end + mocap_framerate
+        print("Baking...")
+        for scene in bpy.data.scenes:
+            for object in scene.objects:
+                for modifier in object.modifiers:
+                    if modifier.type == 'CLOTH':
+                        #override = {'scene': scene, 'active_object': object, 'point_cache': modifier.point_cache}
+                        with bpy.context.temp_override(scene=scene, object=object, point_cache=modifier.point_cache):
+                            bpy.ops.ptcache.bake(bake=True)
+                        break
+                        # end bake
+        print('Done')
+        self.deselect()
 
+        # export frame
+        bpy.data.scenes["Scene"].frame_end = frame_end + mocap_framerate
+        tshirt.select_set(True)
+        bpy.ops.export_scene.obj(filepath='assets/output/tshirt_snug.obj',
+                                 check_existing=False,
+                                 use_animation=True, use_materials=False,
+                                 use_triangles=True, use_selection=True,
+                                 keep_vertex_order=True)
+        #self.deselect()
+        #avg.select_set(True)
+        #bpy.ops.export_scene.obj(filepath='assets/output/avg.obj',
+        #                         check_existing=False,
+        #                         use_animation=True, use_materials=False,
+        #                         use_triangles=True, use_selection=True,
+        #                         keep_vertex_order=True)
 if __name__ == "__main__":
     # initialize BlenderProc
     #bproc.init()
     # Create instance of SMPLModel
     smpl_model = SMPLModel()
-    smpl_model.simulate('assets/cmu_snug_mini.h5',2)
+    smpl_model.simulate('/home/cxh/Documents/dataset/CMU_SAMPLED/06_01_poses.npz')
     #smpl_model.visualize('/home/cxh/Documents/OBJ/CMU_SNUG_MINI/09/09_01_poses.npz')
-
-    
-
-    
