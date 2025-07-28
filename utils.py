@@ -44,7 +44,40 @@ def load_obj(filename, tex_coords=False):
         return vertices, faces, uvs, faces_uv
 
     return vertices, faces
-# Load cmu smpl poses 
+
+# export obj at speicfic frame in blender
+def bpy_export_obj(objname, frame, export_path):
+    bpy.ops.object.select_all(action='DESELECT')
+    objname.select_set(True)
+    bpy.context.view_layer.objects.active = objname
+    original_frame = bpy.context.scene.frame_current
+    bpy.context.scene.frame_set(frame)
+    bpy.context.view_layer.update()
+    
+    bpy.ops.export_scene.obj(filepath=export_path,use_materials=False,
+                             check_existing=False, use_animation=False,
+                             use_normals=True, use_uvs=False,
+                             use_triangles=True,keep_vertex_order=True,
+                             use_selection=True, global_scale=0.01)
+
+    bpy.context.scene.frame_set(original_frame)
+    bpy.context.view_layer.update()
+def bpy_export_ply(objname, frame, export_path):
+    bpy.ops.object.select_all(action='DESELECT')
+    objname.select_set(True)
+    bpy.context.view_layer.objects.active = objname
+    original_frame = bpy.context.scene.frame_current
+    bpy.context.scene.frame_set(frame)
+    bpy.context.view_layer.update()
+
+    bpy.ops.export_mesh.ply(filepath=export_path, use_selection=True,
+                             use_colors=False,                             
+                             global_scale=0.01)
+
+    bpy.context.scene.frame_set(original_frame)
+    bpy.context.view_layer.update()
+
+# Load cmu smpl poses
 def load_cmu(pose_path:str):
     """
     Load cmu pose data from npz file.
