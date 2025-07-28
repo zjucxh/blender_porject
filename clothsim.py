@@ -161,11 +161,13 @@ class SMPLModel():
             npz_data (str): Path to the npz file containing pose data.
         """
 
-        poses, betas, trans, trans_vel = load_motion(npz_data)  # SNUG implementation of loading motion data
+        #poses, betas, trans, trans_vel = load_motion(npz_data)  # SNUG implementation of loading motion data
+        animation =self.load_cmu(npz_data)
+        betas = animation['betas'][:10]  # shape parameters
+        poses = animation['poses'][:,:72]  # pose parameters
+        poses[:,66:72] = 0.0  # reset hand pose
+
         #poses = self.load_cmu(npz_data)
-        #betas = poses['betas'][:10]  # shape parameters
-        #pose = poses['poses'][:,:72]  # pose parameters
-        poses[:,66:72] = 0.0  # rest hand pose
         print('len poses: {0}'.format(poses.shape[0]))
         # apply shape and pose to frame in blender
         for i, p in enumerate(poses):
@@ -198,8 +200,16 @@ class SMPLModel():
         frame_end = mocap_framerate + simulation_length # frame end point in blender
         print(f' pose shape : {poses.shape}')
         print(f' frame end : {frame_end}')
-        
         print('betas : {0}'.format(betas))
+
+        # extract animation data indexed from 0 to simulation_length
+        sim_poses = poses[:simulation_length]
+        sim_betas = betas
+        sim_trans = trans[:simulation_length]
+        sim_gender = 'male'
+        sim_mocap_framerate = mocap_framerate
+        sim_dmpls = dmpls[:simulation_length]
+
         bpy.data.scenes["Scene"].frame_end = frame_end
         # Interpolate skinny shape and rest pose to -30 frame
         skinny_shape = np.array([0, 5, 2, 3, 7, -4, 1, 2, 4, -1], dtype=np.float32)
@@ -273,6 +283,11 @@ class SMPLModel():
         bpy.data.scenes["Scene"].frame_end = frame_end 
         # create output directory if not exists
         os.makedirs(os.path.join(output_path, npz_file_name), exist_ok=True)
+        # write simulation pose data to npz file
+        np.savez(os.path.join(output_path, npz_file_name, 'animation.npz'),
+                 betas=sim_betas, poses=sim_poses, trans=sim_trans,
+                 gender=sim_gender, mocap_framerate=sim_mocap_framerate, dmpls=sim_dmpls)
+
         for frame in range(mocap_framerate+1, frame_end + 1):
             bpy_export_ply(tshirt, 
                            frame=frame, 
@@ -280,11 +295,29 @@ class SMPLModel():
             bpy_export_ply(avg, 
                            frame=frame, 
                            export_path=os.path.join(output_path, npz_file_name, f'body_{frame-mocap_framerate-1:04d}.ply'))
-
+        # free memory
+        bpy.ops.ptcache.free_bake_all()
+        # Reset to default state
+        bpy.ops.wm.read_homefile()
 
 if __name__ == "__main__":
     # initialize BlenderProc
     #bproc.init()
+
+    # demo usage
+    #smpl_model = SMPLModel()
+    #smpl_model.simulate('/home/cxh/Documents/dataset/CMU_SAMPLED/01_01_poses.npz', output_path='/home/cxh/Documents/dataset/CMU_SIMULATION')
+    #smpl_model.visualize('/home/cxh/Documents/dataset/CMU_SIMULATION/01_01/animation.npz')
     # Create instance of SMPLModel
-    smpl_model = SMPLModel()
-    smpl_model.simulate('/home/cxh/Documents/dataset/CMU_SAMPLED/09_02_poses.npz', output_path='/home/cxh/Documents/dataset/CMU_SIMULATION')
+    
+    pose_data_dir = '/home/cxh/Documents/dataset/CMU_SAMPLED'
+    # walk through all npz files in the directory
+    for root, dirs, files in os.walk(pose_data_dir):
+        for file in files:
+            if file.endswith('.npz'):
+                npz_file_path = os.path.join(root, file)
+                print(f'Processing {npz_file_path}')
+                # simulate and export
+                smpl_model = SMPLModel()
+                smpl_model.simulate(npz_file_path, output_path='/home/cxh/Documents/dataset/CMU_SIMULATION')
+    
