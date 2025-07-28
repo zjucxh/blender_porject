@@ -8,7 +8,7 @@ import math
 import numpy as np
 from types import SimpleNamespace as SN
 from mathutils import Matrix, Vector, Quaternion, Euler
-from utils import load_motion, read_hdf5, interpolate_motion
+from utils import load_motion, read_hdf5, interpolate_motion, bpy_export_obj, bpy_export_ply
 
 # SMPL body model
 class SMPLModel():
@@ -161,7 +161,6 @@ class SMPLModel():
             npz_data (str): Path to the npz file containing pose data.
         """
 
-
         poses, betas, trans, trans_vel = load_motion(npz_data)  # SNUG implementation of loading motion data
         #poses = self.load_cmu(npz_data)
         #betas = poses['betas'][:10]  # shape parameters
@@ -174,7 +173,7 @@ class SMPLModel():
             # apply shape and pose
             self.apply_shape_pose(betas, p, frame=i+1)  # frame starts from 1 in Blender
 
-    def simulate(self, pose_data:str):
+    def simulate(self, pose_data:str, output_path:str):
         """
         Visualize and simulate the SMPLH pose data from an npz file in Blender.
         simulation settings:
@@ -182,21 +181,27 @@ class SMPLModel():
                 thickness is set to 0.1 m (1 mm in actual world due to scale)
         smpl body set collision quality to default
         """
+        # split pose data file name with '/' to get the npz file name
+        npz_file_name = pose_data.split('/')[-1][:5]
+        print(' npz file name: {0}'.format(npz_file_name))
         animation = self.load_cmu(pose_data) # animation contains keys: grans, gender, mocap_framerate, betas, dmpls, poses
         betas = animation['betas'][:10]
         print(f' betas : {betas}')
         poses = animation['poses'][:,:72]
+        poses[:,66:72] = 0.0  # rest hand pose
         trans = animation['trans']
         gender = animation['gender'] # male or female
+        gender = 'male' # force gender to male because we imported basicModel_m_lbs_10_207_0_v1.0.2.fbx 
         mocap_framerate = np.int32(animation['mocap_framerate']) # 120
+        simulation_length = np.min([poses.shape[0], 120]) # simulate maximum 120 frames 
         dmpls = animation['dmpls']
-        frame_end = np.min([poses.shape[0], 250])
+        frame_end = mocap_framerate + simulation_length # frame end point in blender
         print(f' pose shape : {poses.shape}')
         print(f' frame end : {frame_end}')
         
         print('betas : {0}'.format(betas))
-        bpy.data.scenes["Scene"].frame_end = frame_end + mocap_framerate
-        # Iterpoplate skinny shape and rest pose to -30 frame
+        bpy.data.scenes["Scene"].frame_end = frame_end
+        # Interpolate skinny shape and rest pose to -30 frame
         skinny_shape = np.array([0, 5, 2, 3, 7, -4, 1, 2, 4, -1], dtype=np.float32)
         rest_pose = np.zeros(72, dtype=np.float32)
         
@@ -210,11 +215,15 @@ class SMPLModel():
         print("Applying shape and poses...")
         for i, p in enumerate(interpolated_poses):
             # apply shape and pose
-            self.apply_shape_pose(interpolated_betas[i], p, frame=i+1) #frame from 1 to 120 
+            self.apply_shape_pose(interpolated_betas[i], p, frame=i+1) #frame from 1 to 120 is the interpolated motion
         # apply shape and pose to frame in blender
-        for i, p in enumerate(poses):
+        for i in range(mocap_framerate+1, frame_end + 1):
+            print(f"Applying shape and pose for frame {i}")
             # apply shape and pose
-            self.apply_shape_pose(betas, p, frame=i+1+mocap_framerate)
+            self.apply_shape_pose(betas, poses[i-mocap_framerate-1], frame=i)
+        #for i, p in enumerate(poses):
+        #    # apply shape and pose
+        #    self.apply_shape_pose(betas, p, frame=i+1+mocap_framerate) # frame from 121 to end frame (usually 240) is the cmu motion
         print(' Done')
         # Jump to starting point 
         bpy.ops.screen.frame_jump(end=False)
@@ -246,7 +255,7 @@ class SMPLModel():
         # Bake
         bpy.context.scene.render.engine = 'CYCLES'
         bpy.context.scene.cycles.device = 'CPU'  
-        bpy.context.object.modifiers['Cloth'].point_cache.frame_end = frame_end + mocap_framerate
+        bpy.context.object.modifiers['Cloth'].point_cache.frame_end = frame_end
         print("Baking...")
         for scene in bpy.data.scenes:
             for object in scene.objects:
@@ -260,25 +269,22 @@ class SMPLModel():
         print('Done')
         self.deselect()
 
-        # export frame
-        bpy.data.scenes["Scene"].frame_end = frame_end + mocap_framerate
-        tshirt.select_set(True)
-        bpy.ops.export_scene.obj(filepath='assets/output/tshirt_snug.obj',
-                                 check_existing=False,
-                                 use_animation=True, use_materials=False,
-                                 use_triangles=True, use_selection=True,
-                                 keep_vertex_order=True)
-        #self.deselect()
-        #avg.select_set(True)
-        #bpy.ops.export_scene.obj(filepath='assets/output/avg.obj',
-        #                         check_existing=False,
-        #                         use_animation=True, use_materials=False,
-        #                         use_triangles=True, use_selection=True,
-        #                         keep_vertex_order=True)
+        # export garment obj sequences
+        bpy.data.scenes["Scene"].frame_end = frame_end 
+        # create output directory if not exists
+        os.makedirs(os.path.join(output_path, npz_file_name), exist_ok=True)
+        for frame in range(mocap_framerate+1, frame_end + 1):
+            bpy_export_ply(tshirt, 
+                           frame=frame, 
+                           export_path=os.path.join(output_path, npz_file_name, f'tshirt_{frame-mocap_framerate-1:04d}.ply'))
+            bpy_export_ply(avg, 
+                           frame=frame, 
+                           export_path=os.path.join(output_path, npz_file_name, f'body_{frame-mocap_framerate-1:04d}.ply'))
+
+
 if __name__ == "__main__":
     # initialize BlenderProc
     #bproc.init()
     # Create instance of SMPLModel
     smpl_model = SMPLModel()
-    smpl_model.simulate('/home/cxh/Documents/dataset/CMU_SAMPLED/06_01_poses.npz')
-    #smpl_model.visualize('/home/cxh/Documents/OBJ/CMU_SNUG_MINI/09/09_01_poses.npz')
+    smpl_model.simulate('/home/cxh/Documents/dataset/CMU_SAMPLED/09_02_poses.npz', output_path='/home/cxh/Documents/dataset/CMU_SIMULATION')
