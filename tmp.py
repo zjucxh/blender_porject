@@ -1,9 +1,10 @@
+import os
+import sys
 import argparse
 import bpy
 import json
 import numpy as np
-import os
-import sys
+import cv2
 from mathutils import Matrix, Vector, Quaternion, Euler
 from types import SimpleNamespace as SN
 
@@ -93,16 +94,11 @@ class BodyModel():
 
     # rodrigues transformation. input rotation vector, return rotation matrix
     def rodrigues(self, rotvec):
-        # TODO: debug info, in theta = 0 case ,dim of r is (3) otherwise (3,1)
-        # TODO: optimize condition case
-        theta = np.linalg.norm(rotvec)
-        r = (rotvec / theta).reshape(3, 1) if theta > 0. else rotvec
-        # print("in rodrigues, r = {0}".format(r.shape))
-        cost = np.cos(theta)
-        mat = np.array([[0, -r[2], r[1]],
-                        [r[2], 0, -r[0]],
-                        [-r[1], r[0], 0]], dtype=np.float32)
-        return (cost * np.eye(3) + (1 - cost) * r.dot(r.T) + np.sin(theta) * mat)
+        """
+        cv2 version of Rodrigues transformation
+        """
+        r, _ = cv2.Rodrigues(rotvec)
+        return r
 
     # Rodrigues to beta shape transformation
     def rodrigues2bshapes(self, pose):
