@@ -13,9 +13,9 @@ This project provides a Blender-based pipeline for simulating cloth (e.g., T-shi
 ## Requirements
 
 - **Blender** (tested with 3.x)
-- **Python** (used inside Blender, with `bpy`, `numpy`, `cv2`, `scipy`)
+- **Python** (used inside Blender, with `bpy`, `numpy`, `cv2`, `scipy`) it is recommended to create python environment via anaconda or miniconda, then create softlink directing to builtin blender python interperator
 - **SMPL Model FBX** files in `assets/model/`
-- **Garment OBJ** file in `assets/meshes/tshirt_snug.obj`
+- **Garment OBJ** file in `assets/meshes/tshirt_snug.obj` you should make sure the garment is fitted to skinny(with shape parameter setted in clothsim.py), rest posed (zero pose) avatar otherwise the simulation will result in unexpected output.
 - **Motion Data**: `.npz` files containing SMPL pose, shape, and translation data
 
 ## Usage
