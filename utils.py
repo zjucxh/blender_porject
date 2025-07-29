@@ -124,6 +124,9 @@ def finite_diff(x, h, diff=1):
     return finite_diff(v, h, diff-1)
 
 def load_motion(path):
+    """
+    Copied from snug project 
+    """
     motion = np.load(path, mmap_mode='r')
 
     reduce_factor = int(motion['mocap_framerate'] // 30)

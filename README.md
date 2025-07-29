@@ -31,7 +31,7 @@ This project provides a Blender-based pipeline for simulating cloth (e.g., T-shi
 Open Blender and run the script:
 
 ```bash
-blender --background --python clothsim.py
+blender -b -P clothsim.py
 ```
 
 The script will:
@@ -41,10 +41,25 @@ The script will:
 
 ### 3. Output
 
-For each sequence, the following will be saved:
+For each sequence, the following files will be saved:
 - `animation.npz`: The pose, shape, and translation data used for simulation.
 - `tshirt_XXXX.ply`: Simulated garment mesh for each frame.
 - `body_XXXX.ply`: Simulated body mesh for each frame.
+
+### 4. Visualization
+
+To visualize raw SMPL motion data before running the full simulation:
+
+1. In `clothsim.py`, locate the `if __name__ == "__main__":` block at the bottom of the file
+2. **Uncomment** the demo visualization section (e.g., `smpl_model.visualize(npz_path)`)
+3. **Comment out** the simulation execution code 
+4. Run the script in Blender:
+   ```bash
+   blender -P clothsim.py
+   ```
+- Export the motion sequence via blender buildin function, and then re-import the avatar and cloth will avoid visual error in blender(don't know why but it works).
+- To visualize the simulation results, a sequence loader blender plugin is required. the link is here: https://github.com/InteractiveComputerGraphics/blender-sequence-loader
+
 
 ## Main Classes and Functions
 
