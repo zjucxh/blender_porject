@@ -70,9 +70,11 @@ def bpy_export_ply(objname, frame, export_path):
     bpy.context.scene.frame_set(frame)
     bpy.context.view_layer.update()
 
-    bpy.ops.export_mesh.ply(filepath=export_path, use_selection=True,
-                             use_colors=False,                             
-                             global_scale=0.01)
+    #bpy.ops.export_mesh.ply(filepath=export_path, use_selection=True,
+    #                         use_colors=False,                             
+    #                         global_scale=0.01)
+    bpy.ops.wm.ply_export(filepath=export_path, export_selected_objects=True,
+                          global_scale=0.01)
 
     bpy.context.scene.frame_set(original_frame)
     bpy.context.view_layer.update()

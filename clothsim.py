@@ -245,7 +245,8 @@ class SMPLModel():
         bpy.ops.object.modifier_add(type='COLLISION')
         self.deselect()
         # import cloth to blender
-        bpy.ops.import_scene.obj(filepath='assets/meshes/tshirt_snug.obj')
+        #bpy.ops.import_scene.obj(filepath='assets/meshes/tshirt_snug.obj') # for version 3.x
+        bpy.ops.wm.obj_import(filepath='assets/meshes/tshirt_snug.obj') # for version 4.x
         tshirt = bpy.data.objects['tshirt']
         tshirt.select_set(True) # select tshirt
         # set physical properties
@@ -259,8 +260,8 @@ class SMPLModel():
         bpy.context.object.modifiers['Cloth'].collision_settings.use_self_collision = True
         bpy.context.object.modifiers['Cloth'].collision_settings.collision_quality = 10
         bpy.ops.object.modifier_add(type='COLLISION')
-        bpy.ops.object.modifier_add(type='SOLIDIFY') # add solidify modifier 
-        bpy.context.object.modifiers["Solidify"].thickness = 0.1 # 1 mm thickness
+        #bpy.ops.object.modifier_add(type='SOLIDIFY') # add solidify modifier 
+        #bpy.context.object.modifiers["Solidify"].thickness = 0.1 # 1 mm thickness
 
         # Bake
         bpy.context.scene.render.engine = 'CYCLES'
