@@ -8,7 +8,7 @@ import math
 import numpy as np
 from types import SimpleNamespace as SN
 from mathutils import Matrix, Vector, Quaternion, Euler
-from utils import load_motion, read_hdf5, interpolate_motion, bpy_export_obj, bpy_export_ply
+from utils import load_motion, read_hdf5, interpolate_motion, bpy_export_obj
 
 # SMPL body model
 class SMPLModel():
@@ -243,6 +243,8 @@ class SMPLModel():
         bpy.context.view_layer.objects.active = avg
         # add collision modifier 
         bpy.ops.object.modifier_add(type='COLLISION')
+        bpy.ops.object.modifier_add(type='TRIANGULATE')
+
         self.deselect()
         # import cloth to blender
         #bpy.ops.import_scene.obj(filepath='assets/meshes/tshirt_snug.obj') # for version 3.x
@@ -260,6 +262,7 @@ class SMPLModel():
         bpy.context.object.modifiers['Cloth'].collision_settings.use_self_collision = True
         bpy.context.object.modifiers['Cloth'].collision_settings.collision_quality = 10
         bpy.ops.object.modifier_add(type='COLLISION')
+        
         #bpy.ops.object.modifier_add(type='SOLIDIFY') # add solidify modifier 
         #bpy.context.object.modifiers["Solidify"].thickness = 0.1 # 1 mm thickness
 
@@ -290,12 +293,12 @@ class SMPLModel():
                  gender=sim_gender, mocap_framerate=sim_mocap_framerate, dmpls=sim_dmpls)
 
         for frame in range(mocap_framerate+1, frame_end + 1):
-            bpy_export_ply(tshirt, 
+            bpy_export_obj(tshirt, 
                            frame=frame, 
-                           export_path=os.path.join(output_path, npz_file_name, f'tshirt_{frame-mocap_framerate-1:04d}.ply'))
-            bpy_export_ply(avg, 
+                           export_path=os.path.join(output_path, npz_file_name, f'tshirt_{frame-mocap_framerate-1:04d}.obj'))
+            bpy_export_obj(avg, 
                            frame=frame, 
-                           export_path=os.path.join(output_path, npz_file_name, f'body_{frame-mocap_framerate-1:04d}.ply'))
+                           export_path=os.path.join(output_path, npz_file_name, f'body_{frame-mocap_framerate-1:04d}.obj'))
         # free memory
         bpy.ops.ptcache.free_bake_all()
         # Reset to default state
